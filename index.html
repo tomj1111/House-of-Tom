@@ -1,53 +1,33 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>US-Iran War Tracker</title>
-    <style>
-        body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; line-height: 1.5; }
-        h1 { color: #f85149; margin-bottom: 10px; }
-        button { background: #238636; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 10px 0; }
-        button:hover { background: #2ea043; }
-        .section { margin: 30px 0; }
-        .event { background: #161b22; padding: 15px; border-radius: 6px; margin: 10px 0; }
-        .event a { color: #58a6ff; }
-        .loading { color: #8b949e; }
-        #timer { font-size: 0.9em; color: #8b949e; }
-    </style>
-</head>
-<body>
-    <h1>US-Iran War Tracker</h1>
-    <button onclick="loadData()">Refresh Now</button>
-    <p id="timer">Last updated: just now | Auto in 5 min</p>
 
-    <div class="section">
-        <h2>Latest Status</h2>
-        <div id="summary" class="loading">Loading...</div>
-    </div>
+<script>
+    const feeds = {
+        summary: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=US+Iran+war+status&hl=en-US&gl=US&ceid=US:en',
+        timeline: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=US+Iran+war+timeline&hl=en-US&gl=US&ceid=US:en',
+        gulf: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=Gulf+US+Iran+conflict&hl=en-US&gl=US&ceid=US:en'
+    };
 
-    <div class="section">
-        <h2>Recent Events</h2>
-        <div id="timeline"></div>
-    </div>
-
-    <div class="section">
-        <h2>Gulf Region Updates</h2>
-        <div id="gulf"></div>
-    </div>
-
-    <script>
-        const feeds = {
-            summary: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=US+Iran+war+status&hl=en-US&gl=US&ceid=US:en',
-            timeline: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=US+Iran+war+timeline&hl=en-US&gl=US&ceid=US:en',
-            gulf: 'https://api.rss2json.com/v1/api.json?rss_url=https://news.google.com/rss/search?q=Gulf+US+Iran+conflict&hl=en-US&gl=US&ceid=US:en'
-        };
-
-        async function fetchFeed(url, targetId, max = 8) {
+    async function fetchFeed(url, targetId, max = 8) {
+        try {
+            let res = await fetch(url);
+            if (!res.ok) throw new Error('Proxy failed');
+            let data = await res.json();
+            if (data.status !== 'ok') throw new Error('Invalid response');
+            const items = data.items.slice(0, max);
+            document.getElementById(targetId).innerHTML = items.map(i => `
+                <div class="event">
+                    <strong>${i.title}</strong><br>
+                    <small>${new Date(i.pubDate).toLocaleString()}</small><br>
+                    <a href="${i.link}" target="_blank">Read →</a>
+                </div>
+            `).join('');
+        } catch (e) {
+            // Fallback: Try a different proxy (rss.app or similar)
             try {
-                const res = await fetch(url);
-                const data = await res.json();
-                const items = data.items.slice(0, max);
+                const fallbackUrl = `https://rss.app/feeds/${btoa(url)}.json`; // base64 encode for some proxies
+                const fbRes = await fetch(fallbackUrl);
+                if (!fbRes.ok) throw new Error();
+                const fbData = await fbRes.json();
+                const items = fbData.items.slice(0, max);
                 document.getElementById(targetId).innerHTML = items.map(i => `
                     <div class="event">
                         <strong>${i.title}</strong><br>
@@ -55,28 +35,22 @@
                         <a href="${i.link}" target="_blank">Read →</a>
                     </div>
                 `).join('');
-            } catch (e) {
-                document.getElementById(targetId).innerHTML = '<p class="loading">Couldn’t load—check internet or try refresh.</p>';
+            } catch {
+                document.getElementById(targetId).innerHTML = '<p class="loading">Feed down—try Refresh Now or check later.</p>';
             }
         }
+    }
 
-        function loadData() {
-            document.getElementById('summary').innerHTML = '<p class="loading">Fetching...</p>';
-            document.getElementById('timeline').innerHTML = '';
-            document.getElementById('gulf').innerHTML = '';
-            fetchFeed(feeds.summary, 'summary', 1);
-            fetchFeed(feeds.timeline, 'timeline');
-            fetchFeed(feeds.gulf, 'gulf');
-            document.getElementById('timer').textContent = `Last updated: ${new Date().toLocaleTimeString()} | Auto in 5 min`;
-        }
+    function loadData() {
+ .forEach(id => {
+            document.getElementById(id).innerHTML = '<p class="loading">Fetching...</p>';
+        });
+        fetchFeed(feeds.summary, 'summary', 1);
+        fetchFeed(feeds.timeline, 'timeline');
+        fetchFeed(feeds.gulf, 'gulf');
+        document.getElementById('timer').textContent = `Last updated: ${new Date().toLocaleTimeString()} | Auto in 5 min`;
+    }
 
-        loadData();
-        setInterval(loadData, 300000); // 5 min
-        setInterval(() => {
-            const t = document.getElementById('timer');
-            const now = new Date();
-            t.textContent = `Last updated: ${now.toLocaleTimeString()} | Auto in 5 min`;
-        }, 1000);
-    </script>
-</body>
-</html>
+    loadData();
+    setInterval(loadData, 300000);
+</script>
